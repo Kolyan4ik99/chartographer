@@ -1,0 +1,28 @@
+{
+  "properties": [
+	{
+	  "name": "charta",
+	  "type": "java.lang.String",
+	  "description": "Description for charta."
+	},
+	{
+	  "name": "charta",
+	  "type": "java.lang.String",
+	  "description": "Description for charta."
+	},
+	{
+	  "name": "height",
+	  "type": "java.lang.String",
+	  "description": "Description for height."
+	},
+	{
+	  "name": "server",
+	  "type": "java.lang.String",
+	  "description": "Description for server."
+	},
+	{
+	  "name": "width",
+	  "type": "java.lang.String",
+	  "description": "Description for width."
+	}
+  ] }
