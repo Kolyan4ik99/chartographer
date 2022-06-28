@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Objects;
 
 @Service
 public class ImageServiceBMP implements ImageService {
@@ -32,7 +33,7 @@ public class ImageServiceBMP implements ImageService {
 	private ArrayList<Charta> chartas;
 
 	@Autowired
-	private Integer id = 0;
+	volatile private Integer id = 0;
 
 	/**
 	 * Создание Харты заданного размера
@@ -41,23 +42,28 @@ public class ImageServiceBMP implements ImageService {
 	 * @return ID созданной Харты
 	 */
 	@Override
-	public synchronized Integer save(Integer width, Integer height) {
+	public Integer save(Integer width, Integer height) {
+		int currentId;
+		synchronized (this) {
+			currentId = this.id;
+			++this.id;
+		}
 		ArrayList<Fragment> fragments = new ArrayList<>();
 		String fileName;
 		for (int x = 0; x < width; x += Math.min(MAX_IMG_SIZE, width - x)) {
 			for (int y = 0; y < height; y += Math.min(MAX_IMG_SIZE, height - y)) {
-				fileName = this.id + "_" + x + "_" + y + "_" + width + "_" + height;
+				fileName = currentId + "_" + x + "_" + y + "_" + width + "_" + height;
 				BufferedImage bi = new BufferedImage(Math.min(MAX_IMG_SIZE, width - x),
 						Math.min(MAX_IMG_SIZE, height - y),
 						BufferedImage.TYPE_3BYTE_BGR);
 				fileServiceBMP.save(fileName, bi);
 				fragments.add(new Fragment(x, y, Math.min(MAX_IMG_SIZE, width - x),
 						Math.min(MAX_IMG_SIZE, height - y),
-						this.id, new File(DemoApplication.PATH + "/" + fileName + ".bmp")));
+						currentId, new File(DemoApplication.PATH + "/" + fileName + ".bmp")));
 			}
 		}
-		chartas.add(new Charta(this.id, width, height, fragments));
-		return this.id++;
+		chartas.add(new Charta(currentId, width, height, fragments));
+		return currentId;
 	}
 
 	/**
@@ -71,17 +77,17 @@ public class ImageServiceBMP implements ImageService {
 	 * @return true при успешном обновлении отрезка
 	 * @throws ChartaNotFoundException нет харты с заданным id
 	 * @throws FragmentNotFoundException нет фрагмента заданного диапазона
-	 * @throws IOException
+	 * @throws IOException при любых других исключениях
 	 */
 	@Override
 	public boolean update(byte[] imageBytesArray, Integer id, Integer x, Integer y, Integer width, Integer height) throws ChartaNotFoundException, FragmentNotFoundException, IOException {
 		ArrayList<Fragment> fragmentArrayList = getChartaById(id).getFragmentsByPosition(x, y, width, height);
-		BufferedImage bufferedImage = null;
 		try (ByteArrayInputStream stream = new ByteArrayInputStream(imageBytesArray)) {
-			bufferedImage = ImageIO.read(stream);
-		}
-		for (Fragment fragment : fragmentArrayList) {
-			drawFragment(bufferedImage, fragment, x, y, width, height);
+			BufferedImage bufferedImage = ImageIO.read(stream);
+
+			for (Fragment fragment : fragmentArrayList) {
+				drawFragment(bufferedImage, fragment, x, y, width, height);
+			}
 		}
 		return true;
 	}
@@ -112,7 +118,7 @@ public class ImageServiceBMP implements ImageService {
 	 * @return Массив байтов изображения BMP формата
 	 * @throws ChartaNotFoundException нет харты с заданным id
 	 * @throws FragmentNotFoundException нет фрагмента заданного диапазона
-	 * @throws IOException
+	 * @throws IOException при любых других исключениях
 	 */
 	@Override
 	public byte[] getImage(Integer id, Integer x, Integer y, Integer width, Integer height)
@@ -127,7 +133,7 @@ public class ImageServiceBMP implements ImageService {
 			drawPart(bufferedImage, fragment, x, y, width, height);
 		}
 
-		byte[] returnBytes = null;
+		byte[] returnBytes;
 		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
 			ImageIO.write(bufferedImage, "BMP", outputStream);
 			returnBytes = outputStream.toByteArray();
@@ -137,7 +143,7 @@ public class ImageServiceBMP implements ImageService {
 
 	private Charta getChartaById(Integer id) throws ChartaNotFoundException {
 		for (Charta charta : this.chartas) {
-			if (charta.getId() == id) {
+			if (Objects.equals(charta.getId(), id)) {
 				return charta;
 			}
 		}
@@ -172,12 +178,12 @@ public class ImageServiceBMP implements ImageService {
 
 	}
 
-	private boolean drawFragment(BufferedImage bufferedImage,
-									Fragment fragment,
-									Integer x,
-									Integer y,
-									Integer width,
-									Integer height) throws IOException {
+	private void drawFragment(BufferedImage bufferedImage,
+	                          Fragment fragment,
+	                          Integer x,
+	                          Integer y,
+	                          Integer width,
+	                          Integer height) throws IOException {
 		int startX = Math.max(x, fragment.getX());
 		int startY = Math.max(y, fragment.getY());
 		int endX = Math.min(x + width, fragment.getX() + fragment.getWidth());
@@ -191,13 +197,11 @@ public class ImageServiceBMP implements ImageService {
 						endX - startX,
 						endY - startY, null);
 		fileServiceBMP.update(fragment.getFile(), fragmentImg);
-
-		return true;
 	}
 
 	private Integer getPositionChartaInArray(Integer id) throws ChartaNotFoundException {
 		for (int i = 0; i < this.chartas.size(); i++) {
-			if (this.chartas.get(i).getId() == id) {
+			if (Objects.equals(this.chartas.get(i).getId(), id)) {
 				return i;
 			}
 		}
